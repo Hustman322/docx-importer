@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+vendor/
+
+# logs
+*.log
+
+# system files
+.DS_Store
+Thumbs.db
+
+# build outputs
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+
+# env files
+.env
+
+# OS junk
+*.swp
