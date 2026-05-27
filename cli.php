@@ -3,18 +3,18 @@
 class WP_Docx_Import_CLI
 {
     /**
-     * wp docx import file.docx
+     * wp docx import file.docx [--category=<id>] [--tags=<tags>]
      */
-    public function import($args)
+    public function import($args, $assoc_args)
     {
         $file = $args[0];
-        $this->import_single_file($file);
+        $this->import_single_file($file, $assoc_args);
     }
 
     /**
-     * wp docx import-folder /path/to/folder
+     * wp docx import-folder /path/to/folder [--category=<id>] [--tags=<tags>]
      */
-    public function import_folder($args)
+    public function import_folder($args, $assoc_args)
     {
         $folder = $args[0];
 
@@ -33,7 +33,7 @@ class WP_Docx_Import_CLI
             WP_CLI::log("Processing: $file");
 
             try {
-                $this->import_single_file($file);
+                $this->import_single_file($file, $assoc_args);
             } catch (Exception $e) {
                 WP_CLI::warning("Failed: $file — " . $e->getMessage());
             }
@@ -45,7 +45,7 @@ class WP_Docx_Import_CLI
     /**
      * Core import logic (1 DOCX = 1 post)
      */
-    private function import_single_file($file)
+    private function import_single_file($file, $extra_args = [])
     {
         if (!file_exists($file)) {
             throw new Exception("File not found");
@@ -57,12 +57,22 @@ class WP_Docx_Import_CLI
 
         $html = $this->remove_first_h1($html);
 
-        $post_id = wp_insert_post([
+        $post_data = [
             'post_title'   => $title,
             'post_content' => $html,
             'post_status'  => 'draft',
             'post_type'    => 'post'
-        ]);
+        ];
+
+        if (!empty($extra_args['category'])) {
+            $post_data['post_category'] = [ (int) $extra_args['category'] ];
+        }
+
+        if (!empty($extra_args['tags'])) {
+            $post_data['tags_input'] = $extra_args['tags'];
+        }
+
+        $post_id = wp_insert_post($post_data);
 
         if (is_wp_error($post_id)) {
             throw new Exception($post_id->get_error_message());
