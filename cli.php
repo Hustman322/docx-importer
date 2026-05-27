@@ -65,7 +65,7 @@ class WP_Docx_Import_CLI
         ];
 
         if (!empty($extra_args['category'])) {
-            $post_data['post_category'] = [ (int) $extra_args['category'] ];
+            $post_data['post_category'] = [(int) $extra_args['category']];
         }
 
         if (!empty($extra_args['tags'])) {
@@ -79,6 +79,9 @@ class WP_Docx_Import_CLI
         }
 
         WP_CLI::log("Created post ID: $post_id");
+
+        // 🔥 attach featured image by same filename
+        $this->attach_featured_image($post_id, $file);
     }
 
     /**
@@ -112,6 +115,65 @@ class WP_Docx_Import_CLI
         }
 
         return 'unknown title';
+    }
+
+    /**
+     * Find matching image (same filename as DOCX) and set as featured image
+     */
+    private function attach_featured_image($post_id, $docx_file)
+    {
+        $base = pathinfo($docx_file, PATHINFO_FILENAME);
+        $dir  = dirname($docx_file);
+
+        $extensions = ['jpg', 'jpeg', 'png', 'webp'];
+
+        foreach ($extensions as $ext) {
+            $image_path = $dir . '/' . $base . '.' . $ext;
+
+            if (file_exists($image_path)) {
+                WP_CLI::log("Found featured image: $image_path");
+                $this->upload_and_set_featured_image($post_id, $image_path);
+                return;
+            }
+        }
+
+        WP_CLI::log("No featured image found for: $base");
+    }
+
+    /**
+     * Upload image to WP media library and set as featured image
+     */
+    private function upload_and_set_featured_image($post_id, $image_path)
+    {
+        $filetype = wp_check_filetype(basename($image_path), null);
+
+        $upload = wp_upload_bits(
+            basename($image_path),
+            null,
+            file_get_contents($image_path)
+        );
+
+        if (!empty($upload['error'])) {
+            throw new Exception($upload['error']);
+        }
+
+        $attachment = [
+            'post_mime_type' => $filetype['type'],
+            'post_title'     => sanitize_file_name(basename($image_path)),
+            'post_content'   => '',
+            'post_status'    => 'inherit'
+        ];
+
+        $attach_id = wp_insert_attachment($attachment, $upload['file'], $post_id);
+
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+
+        $attach_data = wp_generate_attachment_metadata($attach_id, $upload['file']);
+        wp_update_attachment_metadata($attach_id, $attach_data);
+
+        set_post_thumbnail($post_id, $attach_id);
+
+        WP_CLI::log("Featured image set (attachment ID: $attach_id)");
     }
 }
 
